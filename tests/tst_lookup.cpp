@@ -7,6 +7,7 @@
 #include <QUrlQuery>
 #include <QtTest>
 #include <functional>
+#include <memory>
 
 // Sends every request to a local fake server, keeping the original path and query.
 class RedirectingNAM : public QNetworkAccessManager {
@@ -30,10 +31,13 @@ public:
     FakeServer() {
         connect(this, &QTcpServer::newConnection, this, [this] {
             while (QTcpSocket *s = nextPendingConnection()) {
-                connect(s, &QTcpSocket::readyRead, s, [this, s] {
-                    const QByteArray req = s->readAll();
+                // Requests can arrive in several reads; answer once the headers are complete.
+                auto buffer = std::make_shared<QByteArray>();
+                connect(s, &QTcpSocket::readyRead, s, [this, s, buffer] {
+                    buffer->append(s->readAll());
+                    if (!buffer->contains("\r\n\r\n")) return;
                     ++requests;
-                    s->write(respond(req));
+                    s->write(respond(*buffer));
                     s->disconnectFromHost();
                 });
             }
@@ -118,7 +122,7 @@ private slots:
         QString error; bool done = false;
         client.lyrics("Song", "", 1, [&](QVector<LyricMatch>, QString e) { error = e; done = true; });
         QTRY_VERIFY_WITH_TIMEOUT(done, 10000);
-        QVERIFY(seen.contains("User-Agent: CoverFlow/"));
+        QVERIFY2(seen.toLower().contains("user-agent: coverflow/"), seen.constData());
         QVERIFY(seen.contains("GET /api/search?track_name=Song "));
         QCOMPARE(error, QString("No matches found. Try changing the title or artist."));
     }
