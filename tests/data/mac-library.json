@@ -1,0 +1,6 @@
+{"version":1,"albums":[{"id":"6E1C4D7A-6C3F-4C55-9E77-2B0E1B7C8E11","groupKey":"album:x|y","title":"Be Here Now",
+            "artist":"Oasis","year":1997,"trackIDs":["0D6B6F34-6F06-4A2B-9E3A-111111111111"],"artworkVersion":2,"dateAdded":800000000.5,
+            "isDemo":false,"missingMetadata":false,"userEdited":false,"appearance":{"sceneEnabled":false,"sceneStrength":0.55,"sceneVariation":0}}],
+            "tracks":[{"id":"0D6B6F34-6F06-4A2B-9E3A-111111111111","fileURL":{"relative":"file:///Users/me/Music/Oasis/03%20Song.flac"},
+            "title":"I Hope, I Think, I Know","artist":"Oasis","albumTitle":"Be Here Now","trackNumber":9,"duration":262.4,
+            "dateAdded":800000000.5,"isDemo":false,"missingMetadata":false,"fingerprint":"f"}]}

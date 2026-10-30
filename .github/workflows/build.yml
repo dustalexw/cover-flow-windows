@@ -1,0 +1,107 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-cache,readwrite"
+    steps:
+      - uses: actions/checkout@v4
+
+      # FFmpeg takes ~20 minutes to build from source; cache vcpkg's built packages.
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: vcpkg-cache
+          key: vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt 6.8
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: win64_msvc2022_64
+          modules: qtmultimedia
+          cache: true
+
+      - name: Set up vcpkg (TagLib, FFmpeg)
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 9eec002df1cd109f8f104cd966a763daf9751489
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+          -DPKG_CONFIG_EXECUTABLE="${{ github.workspace }}/build/vcpkg_installed/x64-windows/tools/pkgconf/pkgconf.exe"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: |
+          $env:PATH = "${{ github.workspace }}\build\vcpkg_installed\x64-windows\bin;$env:PATH"
+          ctest --test-dir build --output-on-failure
+
+      # Launch the real app (with a sample WAV) and save a screenshot; fails on QML
+      # load errors or a hang at start-up.
+      - name: Smoke test
+        run: |
+          $env:PATH = "${{ github.workspace }}\build\vcpkg_installed\x64-windows\bin;$env:PATH"
+          $env:COVERFLOW_DATA_DIR = "$env:RUNNER_TEMP\cfdata"
+          $env:COVERFLOW_SCREENSHOT = "$env:RUNNER_TEMP\smoke.png"
+          $env:COVERFLOW_SCREENSHOT_DELAY = "6000"
+          $env:QT_FORCE_STDERR_LOGGING = "1"
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\music" | Out-Null
+          python -c "import wave,struct,math; w=wave.open(r'$env:RUNNER_TEMP\music\01 Tone.wav','wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(44100); w.writeframes(b''.join(struct.pack('<hh',int(8000*math.sin(i/20)),int(8000*math.sin(i/20))) for i in range(44100)))"
+          $p = Start-Process -FilePath build\bin\CoverFlow.exe -ArgumentList "`"$env:RUNNER_TEMP\music`"" -PassThru -RedirectStandardError "$env:RUNNER_TEMP\stderr.txt"
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw "Cover Flow did not exit (hang?)" }
+          Get-Content "$env:RUNNER_TEMP\stderr.txt"
+          if (-not (Test-Path $env:COVERFLOW_SCREENSHOT)) { throw "No screenshot was written" }
+          if (Select-String -Path "$env:RUNNER_TEMP\stderr.txt" -Pattern "qrc:/" -Quiet) { throw "QML warnings at start-up" }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshot
+          path: ${{ runner.temp }}/smoke.png
+
+      - name: Package
+        run: |
+          $dist = "dist\Cover Flow"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item build\bin\CoverFlow.exe $dist
+          Copy-Item build\vcpkg_installed\x64-windows\bin\*.dll $dist
+          windeployqt --release --qmldir qml --no-translations --no-system-d3d-compiler "$dist\CoverFlow.exe"
+          Copy-Item README.md, THIRD-PARTY-NOTICES.md $dist
+          Compress-Archive -Path $dist -DestinationPath "dist\Cover-Flow-Windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cover-Flow-Windows-x64
+          path: dist/Cover-Flow-Windows-x64.zip
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build qt6-base-dev qt6-declarative-dev qt6-multimedia-dev \
+            qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
+            qml6-module-qtquick-window qml6-module-qtquick-dialogs qml6-module-qtqml-workerscript \
+            qml6-module-qtquick-templates qml6-module-qtquick-shapes qml6-module-qt-labs-settings libtag1-dev libavformat-dev libavcodec-dev libswresample-dev libavutil-dev
+      - name: Build and test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build --parallel
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure

@@ -1,0 +1,9 @@
+build/
+build-*/
+dist/
+vcpkg_installed/
+vcpkg-cache/
+CMakeLists.txt.user
+*.autosave
+.vs/
+.vscode/

@@ -1,0 +1,14 @@
+{
+  "name": "cover-flow-windows",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "pkgconf",
+    "taglib",
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": ["avcodec", "avformat", "swresample"]
+    }
+  ],
+  "builtin-baseline": "9eec002df1cd109f8f104cd966a763daf9751489"
+}
