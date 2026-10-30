@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import Qt.labs.settings
 
 // AlbumViewController/AlbumViewScreen: a resizable mini-player of the playing album
 // with Compact / Large / Immersive presets, keep-on-top and auto-hiding controls.
@@ -40,28 +39,27 @@ ApplicationWindow {
     readonly property real controlsHeight: immersive ? Math.min(118, height * 0.12) : (narrow || short_ ? 104 : 150)
     readonly property real topInset: immersive ? Math.max(24, height * 0.025) : 38
 
-    Settings {
-        id: settings
-        category: "albumView"
-        property alias x: root.x
-        property alias y: root.y
-        property alias width: root.width
-        property alias height: root.height
-        property alias preset: root.preset
-        property alias focusMode: root.focusMode
-        property bool placed: false
+    // Geometry, preset and focus mode persist (albumView/* keys).
+    function saveState() {
+        app.setSetting("albumView/geometry", Qt.rect(x, y, width, height))
+        app.setSetting("albumView/preset", immersive ? presetBeforeImmersive : preset)
+        app.setSetting("albumView/focusMode", focusMode)
     }
+    onClosing: saveState()
     Component.onCompleted: {
-        if (!settings.placed) {
+        const g = app.setting("albumView/geometry")
+        if (g && g.width > 0) { x = g.x; y = g.y; width = g.width; height = g.height }
+        else {
             // First open: bottom-right of the screen.
             x = Screen.desktopAvailableWidth - 340
             y = Screen.desktopAvailableHeight - height - 110
-            settings.placed = true
         }
+        preset = app.setting("albumView/preset", "compact")
+        const f = app.setting("albumView/focusMode", false)
+        focusMode = f === true || f === "true"
         // Keep at least 80×80 px on screen.
         x = Math.max(-width + 80, Math.min(x, Screen.desktopAvailableWidth - 80))
         y = Math.max(0, Math.min(y, Screen.desktopAvailableHeight - 80))
-        if (immersive) applyPreset("compact")
     }
 
     function applyPreset(p) {

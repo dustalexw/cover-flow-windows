@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
-import Qt.labs.settings
 
 // LyricsView.swift in its own window: synced lines follow playback, click to seek.
 ApplicationWindow {
@@ -29,7 +28,14 @@ ApplicationWindow {
     property bool follow: true
     readonly property int active: app.lyricsSynced ? app.lyricsActiveIndex(player.position) : -1
 
-    Settings { category: "lyricsWindow"; property alias x: root.x; property alias y: root.y; property alias width: root.width; property alias height: root.height; property alias follow: root.follow }
+    // Remember geometry and the follow toggle.
+    Component.onCompleted: {
+        const g = app.setting("lyricsWindow/geometry")
+        if (g && g.width > 0) { x = g.x; y = g.y; width = g.width; height = g.height }
+        follow = app.setting("lyricsWindow/follow", true) !== false && app.setting("lyricsWindow/follow", true) !== "false"
+    }
+    onClosing: app.setSetting("lyricsWindow/geometry", Qt.rect(x, y, width, height))
+    onFollowChanged: app.setSetting("lyricsWindow/follow", follow)
     Shortcut { sequence: "Space"; onActivated: player.togglePlayPause() }
     Shortcut { sequence: "Ctrl+W"; onActivated: root.close() }
 

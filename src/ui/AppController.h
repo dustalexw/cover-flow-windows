@@ -131,6 +131,9 @@ public:
     Q_INVOKABLE void clearLookup();
 
     Q_INVOKABLE static QString formatTime(double seconds);
+    // Generic persisted values for QML (window geometry etc.).
+    Q_INVOKABLE QVariant setting(const QString &key, const QVariant &fallback = {}) const { return m_settings.value(key, fallback); }
+    Q_INVOKABLE void setSetting(const QString &key, const QVariant &value) { m_settings.setValue(key, value); }
 
 signals:
     void settingsChanged();
